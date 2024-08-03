@@ -31,7 +31,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 async function performSummarization(payload, type) {
-  console.time("Summarization Time") * 1000;
+  console.time("Summarization Time");
   console.log("Type: ", type);
   try {
     const response = await fetch("http://127.0.0.1:8000/summarize", {
@@ -49,7 +49,6 @@ async function performSummarization(payload, type) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    console.log("X-Cache: ", response.headers.get("X-Cache"));
     const summary = await response.json();
     console.log("Summary Success!", summary);
 
@@ -77,7 +76,7 @@ async function performSummarization(payload, type) {
   } catch (error) {
     console.error("Error in summarizing: ", error);
   } finally {
-    console.timeEnd("Summarization Time");
+    console.timeEnd("Summarization Time"); 
   }
 }
 

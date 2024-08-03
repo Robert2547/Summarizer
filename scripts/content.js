@@ -30,6 +30,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     const summaryText = document.createElement("p");
     summaryText.textContent = request.summary;
+    summaryText.style.fontSize = "1rem";
 
     const closeButton = document.createElement("button");
     closeButton.textContent = "Close";

@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadMostRecentSummary() {
   const summaryElement = document.getElementById("summary");
-  console.log("Loading most recent summary, summaryElement: ", summaryElement);
 
   chrome.storage.sync.get(null, (items) => {
     let mostRecentSummary = null;
