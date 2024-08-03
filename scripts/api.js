@@ -31,6 +31,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 async function performSummarization(payload, type) {
+  chrome.runtime.sendMessage({ type: "SHOW_LOADING", show: true });
+  console.log("SHOW_LOADING sent");
   console.time("Summarization Time");
   console.log("Type: ", type);
   try {
@@ -76,7 +78,8 @@ async function performSummarization(payload, type) {
   } catch (error) {
     console.error("Error in summarizing: ", error);
   } finally {
-    console.timeEnd("Summarization Time"); 
+    // chrome.runtime.sendMessage({ type: "SHOW_LOADING", show: false });
+    console.timeEnd("Summarization Time");
   }
 }
 

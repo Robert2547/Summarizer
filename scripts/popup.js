@@ -1,6 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("Popup loaded");
-
   const checkButton = document.getElementById("check-summary");
 
   checkServerStatus();
@@ -10,7 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkResult(checkButton);
 
-  // Listen for SUMMARY_UPDATED messages
+  // Check for summary when popup is opened
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "SUMMARY_UPDATED") {
       loadMostRecentSummary();
@@ -20,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadMostRecentSummary() {
   const summaryElement = document.getElementById("summary");
-
+  showLoading(true);
   chrome.storage.sync.get(null, (items) => {
     let mostRecentSummary = null;
     let mostRecentTime = 0;
@@ -43,12 +41,41 @@ async function loadMostRecentSummary() {
       "Most recent summary: ",
       mostRecentSummary ? mostRecentSummary.text : "None"
     );
+    showLoading(false);
   });
 }
+function showLoading(show) {
+  const summaryElement = document.getElementById("summary");
+  const loadingScreen = document.getElementById("loading-screen");
 
+  if (summaryElement && loadingScreen) {
+    if (show) {
+      // Show loading screen
+      loadingScreen.style.display = "block";
+      summaryElement.style.display = "none";
+      return true;
+    } else {
+      // Hide loading screen
+      loadingScreen.style.display = "none";
+      summaryElement.style.display = "block";
+      return false;
+    }
+  } else {
+    console.error("Summary or loading screen element not found");
+  }
+}
+
+// Check for new summary updates
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "SUMMARY_UPDATED") {
     loadMostRecentSummary();
+  }
+});
+
+// Add this listener to handle loading state changes
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "SHOW_LOADING") {
+    showLoading(message.show);
   }
 });
 
@@ -69,11 +96,17 @@ async function checkServerStatus() {
       '<object type="text/html" data="status.html" width="300px" height="200px"></object>';
   }
 }
+
 async function checkResult(checkButton) {
   // Check result button click event
   checkButton.addEventListener("click", () => {
+    showLoading(true); // Show loading screen
     chrome.runtime.sendMessage({ type: "GET_SUMMARY" }, (response) => {
-      const summary = response.summary || "No summary available.";
+      const summary = response.summary || showLoading(true);
+      if (summary === showLoading(true)) {
+        // No content to show, return
+        return;
+      }
 
       // Query for the active tab in the current window
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -91,10 +124,12 @@ async function checkResult(checkButton) {
                 type: "SHOW_SUMMARY",
                 summary,
               });
+              showLoading(false); // Hide loading screen after summary is shown
             }
           );
         } catch (error) {
           console.log("Error in sending SHOW_SUMMARY message: ", error);
+          showLoading(false); // Hide loading screen if there's an error
         }
       });
     });

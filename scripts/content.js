@@ -4,7 +4,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (existingPopup) {
       existingPopup.remove();
     }
-
     const popupOverlay = document.createElement("div");
     popupOverlay.id = "summary-popup-overlay";
     popupOverlay.style.position = "fixed";
@@ -52,5 +51,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     popupContent.appendChild(closeButton);
     popupOverlay.appendChild(popupContent);
     document.body.appendChild(popupOverlay);
+
   }
 });
