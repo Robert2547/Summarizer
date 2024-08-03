@@ -1,0 +1,26 @@
+{
+    "manifest_version": 3,
+    "name": "Text Summarizer",
+    "version": "1.0",
+    "description": "Summarize selected text",
+    "permissions": ["contextMenus", "activeTab", "scripting", "storage", "tabs", "notifications"],
+    "background": {
+      "service_worker": "scripts/api.js"
+    },
+    "action": {
+      "default_popup": "static/popup.html",
+      "default_icon": "icons/pad.png"
+    },
+    "icons": {
+      "16": "icons/pad.png",
+      "48": "icons/pad.png",
+      "128": "icons/pad.png"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["scripts/content.js"]
+      }
+    ]
+  }
+  
