@@ -1,56 +1,119 @@
+
+/**
+ * Listens for messages from the extension's background script.
+ * Currently handles the 'SHOW_SUMMARY' message type to display a summary popup.
+ */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "SHOW_SUMMARY") {
-    const existingPopup = document.getElementById("summary-popup-overlay");
-    if (existingPopup) {
-      existingPopup.remove();
-    }
-    const popupOverlay = document.createElement("div");
-    popupOverlay.id = "summary-popup-overlay";
-    popupOverlay.style.position = "fixed";
-    popupOverlay.style.top = "0";
-    popupOverlay.style.left = "0";
-    popupOverlay.style.width = "100%";
-    popupOverlay.style.height = "100%";
-    popupOverlay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-    popupOverlay.style.display = "flex";
-    popupOverlay.style.justifyContent = "center";
-    popupOverlay.style.alignItems = "center";
-    popupOverlay.style.zIndex = "10000";
-
-    const popupContent = document.createElement("div");
-    popupContent.style.backgroundColor = "#ecf0f1";
-    popupContent.style.color = "#2c3e50";
-    popupContent.style.padding = "2rem";
-    popupContent.style.borderRadius = "1rem";
-    popupContent.style.textAlign = "center";
-    popupContent.style.maxWidth = "80%";
-    popupContent.style.maxHeight = "80%";
-    popupContent.style.overflowY = "auto";
-
-    const summaryText = document.createElement("p");
-    summaryText.textContent = request.summary;
-    summaryText.style.fontSize = "1rem";
-
-    const closeButton = document.createElement("button");
-    closeButton.textContent = "Close";
-    closeButton.style.backgroundColor = "#2980b9";
-    closeButton.style.color = "#ecf0f1";
-    closeButton.style.border = "none";
-    closeButton.style.borderRadius = "0.5rem";
-    closeButton.style.padding = "0.5rem 1rem";
-    closeButton.style.fontSize = "1rem";
-    closeButton.style.cursor = "pointer";
-    closeButton.style.marginTop = "1rem";
-    closeButton.style.transition = "background-color 0.3s ease";
-
-    closeButton.addEventListener("click", () => {
-      popupOverlay.remove();
-    });
-
-    popupContent.appendChild(summaryText);
-    popupContent.appendChild(closeButton);
-    popupOverlay.appendChild(popupContent);
-    document.body.appendChild(popupOverlay);
-
+    showSummaryPopup(request.summary);
   }
 });
+
+/**
+ * Creates and displays a popup with the provided summary text.
+ * @param {string} summaryText - The summary to display in the popup.
+ */
+function showSummaryPopup(summaryText) {
+  // Remove existing popup if present
+  const existingPopup = document.getElementById("summary-popup-overlay");
+  if (existingPopup) {
+    existingPopup.remove();
+  }
+
+  // Create popup overlay
+  const popupOverlay = createPopupOverlay();
+
+  // Create popup content
+  const popupContent = createPopupContent(summaryText);
+
+  // Append content to overlay and overlay to body
+  popupOverlay.appendChild(popupContent);
+  document.body.appendChild(popupOverlay);
+}
+
+/**
+ * Creates the overlay element for the popup.
+ * @returns {HTMLElement} The created overlay element.
+ */
+function createPopupOverlay() {
+  const overlay = document.createElement("div");
+  overlay.id = "summary-popup-overlay";
+  Object.assign(overlay.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: "10000",
+  });
+  return overlay;
+}
+
+/**
+ * Creates the content element for the popup, including the summary text and close button.
+ * @param {string} summaryText - The summary to display in the popup.
+ * @returns {HTMLElement} The created content element.
+ */
+function createPopupContent(summaryText) {
+  const content = document.createElement("div");
+  Object.assign(content.style, {
+    backgroundColor: "#ecf0f1",
+    color: "#2c3e50",
+    padding: "2rem",
+    borderRadius: "1rem",
+    textAlign: "center",
+    maxWidth: "80%",
+    maxHeight: "80%",
+    overflowY: "auto",
+  });
+
+  const summaryParagraph = createSummaryParagraph(summaryText);
+  const closeButton = createCloseButton();
+
+  content.appendChild(summaryParagraph);
+  content.appendChild(closeButton);
+
+  return content;
+}
+
+/**
+ * Creates a paragraph element with the summary text.
+ * @param {string} summaryText - The summary to display.
+ * @returns {HTMLElement} The created paragraph element.
+ */
+function createSummaryParagraph(summaryText) {
+  const paragraph = document.createElement("p");
+  paragraph.textContent = summaryText;
+  paragraph.style.fontSize = "1rem";
+  return paragraph;
+}
+
+/**
+ * Creates a close button for the popup.
+ * @returns {HTMLElement} The created button element.
+ */
+function createCloseButton() {
+  const button = document.createElement("button");
+  button.textContent = "Close";
+  Object.assign(button.style, {
+    backgroundColor: "#2980b9",
+    color: "#ecf0f1",
+    border: "none",
+    borderRadius: "0.5rem",
+    padding: "0.5rem 1rem",
+    fontSize: "1rem",
+    cursor: "pointer",
+    marginTop: "1rem",
+    transition: "background-color 0.3s ease",
+  });
+
+  button.addEventListener("click", () => {
+    document.getElementById("summary-popup-overlay").remove();
+  });
+
+  return button;
+}

@@ -35,7 +35,7 @@ function createContextMenus() {
 
 /**
  * Handles clicks on context menu items.
- * @param {Object} info - menu selection information. (summarizeSelection or summarizeArticle)
+ * @param {Object} info - Information about the clicked menu item and current page. (summarizeSelection or summarizeArticle)
  * @param {Object} tab - Information about the current tab.
  */
 function handleContextMenuClick(info, tab) {
