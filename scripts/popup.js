@@ -1,22 +1,23 @@
 /**
+ * Base URL for the summarization API.
+ * @constant {string}
+ */
+const API_URL = 'http://127.0.0.1:8000';
+
+/**
  * Object containing references to important DOM elements.
  * @type {Object}
  */
 const elements = {
-  checkButton: document.getElementById('check-summary'),
-  summary: document.getElementById('summary'),
-  loadingScreen: document.getElementById('loading-screen'),
+  checkButton: document.getElementById("check-summary"),
+  summary: document.getElementById("summary"),
+  loadingScreen: document.getElementById("loading-screen"),
 };
 
-/**
- * Flag to track if summarization is in progress.
- * @type {boolean}
- */
-let isLoading = false;
 
 // Event Listeners
-document.addEventListener('DOMContentLoaded', initializePopup);
-elements.checkButton.addEventListener('click', handleCheckResult);
+document.addEventListener("DOMContentLoaded", initializePopup);
+elements.checkButton.addEventListener("click", handleCheckResult);
 
 // Message Listeners
 chrome.runtime.onMessage.addListener(handleRuntimeMessages);
@@ -25,6 +26,7 @@ chrome.runtime.onMessage.addListener(handleRuntimeMessages);
  * Initializes the popup by loading the most recent summary.
  */
 function initializePopup() {
+  checkServerStatus();
   loadMostRecentSummary();
 }
 
@@ -33,7 +35,7 @@ function initializePopup() {
  */
 function loadMostRecentSummary() {
   showLoading(true);
-  chrome.runtime.sendMessage({ type: 'GET_SUMMARY' }, (response) => {
+  chrome.runtime.sendMessage({ type: "GET_SUMMARY" }, (response) => {
     updateSummaryDisplay(response.summary);
     showLoading(false);
   });
@@ -44,12 +46,10 @@ function loadMostRecentSummary() {
  * Retrieves the most recent summary and displays it in the active tab.
  */
 function handleCheckResult() {
-  if (isLoading) return; // Prevent action if already loading
-
   showLoading(true);
-  chrome.runtime.sendMessage({ type: 'GET_SUMMARY' }, (response) => {
-    const summary = response.summary || 'No summary available.';
-    if (summary === 'No summary available.') {
+  chrome.runtime.sendMessage({ type: "GET_SUMMARY" }, (response) => {
+    const summary = response.summary || "No summary available.";
+    if (summary === "No summary available.") {
       showLoading(false);
       return;
     }
@@ -62,9 +62,8 @@ function handleCheckResult() {
  * @param {boolean} show - Whether to show or hide the loading screen.
  */
 function showLoading(show) {
-  isLoading = show;
-  elements.loadingScreen.style.display = show ? 'block' : 'none';
-  elements.summary.style.display = show ? 'none' : 'block';
+  elements.loadingScreen.style.display = show ? "block" : "none";
+  elements.summary.style.display = show ? "none" : "block";
   elements.checkButton.disabled = show;
 }
 
@@ -82,13 +81,19 @@ function updateSummaryDisplay(summaryText) {
  */
 function showSummaryInActiveTab(summary) {
   chrome.tabs.query({ active: true, currentWindow: true }, ([activeTab]) => {
-    chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      files: ['scripts/content.js'],
-    }, () => {
-      chrome.tabs.sendMessage(activeTab.id, { type: 'SHOW_SUMMARY', summary });
-      showLoading(false);
-    });
+    chrome.scripting.executeScript(
+      {
+        target: { tabId: activeTab.id },
+        files: ["scripts/content.js"],
+      },
+      () => {
+        chrome.tabs.sendMessage(activeTab.id, {
+          type: "SHOW_SUMMARY",
+          summary,
+        });
+        showLoading(false);
+      }
+    );
   });
 }
 
@@ -98,11 +103,33 @@ function showSummaryInActiveTab(summary) {
  */
 function handleRuntimeMessages(message) {
   switch (message.type) {
-    case 'SUMMARY_UPDATED':
+    case "SUMMARY_UPDATED":
       loadMostRecentSummary();
       break;
-    case 'SHOW_LOADING':
+    case "SHOW_LOADING":
       showLoading(message.show);
       break;
+  }
+}
+
+/**
+ * Checks the status of the summarization server.
+ * If the server is down, it displays a status page.
+ */
+async function checkServerStatus() {
+  try {
+    const response = await fetch(`${API_URL}/healthcheck`);
+    if (response.ok) {
+      console.log("Server is running");
+      chrome.storage.local.set({ serverStatus: "running" });
+    } else {
+      throw new Error("Server not reachable");
+    }
+  } catch (error) {
+    console.error("Server is down:", error);
+    chrome.storage.local.set({ serverStatus: "down" });
+    // Display status page if server is down
+    document.body.innerHTML =
+      '<object type="text/html" data="status.html" width="300px" height="200px"></object>';
   }
 }
