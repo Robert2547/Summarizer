@@ -1,5 +1,26 @@
+/**
+ * Base URL for the summarization API.
+ * @constant {string}
+ */
+const API_URL = "http://127.0.0.1:8000";
+
+/**
+ * Time in milliseconds for summary expiration (24 hours).
+ * @constant {number}
+ */
+const SUMMARY_EXPIRATION = 24 * 60 * 60 * 1000;
+
 // Initialize context menu
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(createContextMenus);
+
+// Event Listeners
+chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
+chrome.runtime.onMessage.addListener(handleRuntimeMessages);
+
+/**
+ * Creates context menu items for summarization.
+ */
+function createContextMenus() {
   chrome.contextMenus.create({
     id: "summarizeSelection",
     title: "Summarize Selection",
@@ -10,94 +31,56 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "Summarize Article",
     contexts: ["page"],
   });
-});
+}
 
-// Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  console.log("menu item clicked: ", info.menuItemId);
-  if (info.menuItemId === "summarizeSelection") {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      function: performSummarization,
-      args: [info.selectionText, "text"],
-    });
-  } else if (info.menuItemId === "summarizeArticle") {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      function: performSummarization,
-      args: [tab.url, "url"],
-    });
-  }
-});
+/**
+ * Handles clicks on context menu items.
+ * @param {Object} info - menu selection information. (summarizeSelection or summarizeArticle)
+ * @param {Object} tab - Information about the current tab.
+ */
+function handleContextMenuClick(info, tab) {
+  const summarizationTypes = {
+    summarizeSelection: { payload: info.selectionText, type: "text" },
+    summarizeArticle: { payload: tab.url, type: "url" },
+  };
 
-async function performSummarization(payload, type) {
-  chrome.runtime.sendMessage({ type: "SHOW_LOADING", show: true });
-  console.log("SHOW_LOADING sent");
-  console.time("Summarization Time");
-  console.log("Type: ", type);
-  try {
-    const response = await fetch("http://127.0.0.1:8000/summarize", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        type === "text" ? { text: payload } : { url: payload }
-      ),
-    });
-
-    if (!response.ok) {
-      console.log("Error in summarizing: ", response);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const summary = await response.json();
-    console.log("Summary Success!", summary);
-
-    // Store summary with expiration
-    const expirationTime = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
-    const summaryData = {
-      text: summary.summary, // Changed from summary.text to summary.summary
-      expiration: expirationTime,
-      type: type,
-      payload: payload,
-    };
-
-    // Use a unique key for storage
-    const storageKey = type === "url" ? payload : `text_${Date.now()}`;
-    console.log("Storage Key: ", storageKey);
-
-    // Use sync storage
-    chrome.storage.sync.set({ [storageKey]: summaryData }, () => {
-      chrome.runtime.sendMessage({
-        type: "SUMMARY_UPDATED",
-        key: storageKey,
-        summaryData: summaryData,
-      });
-    });
-  } catch (error) {
-    console.error("Error in summarizing: ", error);
-  } finally {
-    // chrome.runtime.sendMessage({ type: "SHOW_LOADING", show: false });
-    console.timeEnd("Summarization Time");
+  const { payload, type } = summarizationTypes[info.menuItemId] || {};
+  if (payload && type) {
+    performSummarization(payload, type);
   }
 }
 
-// Listen for messages from the popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+/**
+ * Performs summarization of the given payload.
+ * @param {string} payload - The text or URL to summarize.
+ * @param {string} type - The type of summarization ('text' or 'url').
+ */
+async function performSummarization(payload, type) {
+  showLoading(true);
+  console.time("Summarization Time");
+
+  try {
+    const summary = await fetchSummary(payload, type);
+    await storeSummary(summary, type, payload);
+  } catch (error) {
+    console.error("Error in summarizing:", error);
+  } finally {
+    console.timeEnd("Summarization Time");
+    showLoading(false);
+  }
+}
+
+/**
+ * Handles runtime messages from other parts of the extension.
+ * @param {Object} request - The received message.
+ * @param {Object} sender - Information about the message sender.
+ * @param {function} sendResponse - Function to send a response.
+ * @returns {boolean} - Whether the response will be sent asynchronously.
+ */
+function handleRuntimeMessages(request, sender, sendResponse) {
   if (request.type === "GET_SUMMARY") {
     chrome.storage.sync.get(null, (items) => {
-      let mostRecentSummary = null;
-      let mostRecentTime = 0;
-
-      for (let key in items) {
-        const summaryData = items[key];
-        if (summaryData.expiration > mostRecentTime) {
-          mostRecentSummary = summaryData;
-          mostRecentTime = summaryData.expiration;
-        }
-      }
-
+      const mostRecentSummary = getMostRecentSummary(items);
       sendResponse({
         summary: mostRecentSummary
           ? mostRecentSummary.text
@@ -105,5 +88,75 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     });
     return true; // Indicates that the response is sent asynchronously
+  } else if (request.type === "SUMMARIZE") {
+    performSummarization(request.payload, request.summarizationType);
+    return false;
   }
-});
+}
+
+/**
+ * Fetches a summary from the API.
+ * @param {string} payload - The text or URL to summarize.
+ * @param {string} type - The type of summarization ('text' or 'url').
+ * @returns {Promise<Object>} - The summary data.
+ */
+async function fetchSummary(payload, type) {
+  const response = await fetch(`${API_URL}/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      type === "text" ? { text: payload } : { url: payload }
+    ),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Stores the summary in chrome.storage.sync.
+ * @param {Object} summary - The summary data from the API.
+ * @param {string} type - The type of summarization ('text' or 'url').
+ * @param {string} payload - The original text or URL.
+ */
+async function storeSummary(summary, type, payload) {
+  const summaryData = {
+    text: summary.summary,
+    expiration: Date.now() + SUMMARY_EXPIRATION,
+    type,
+    payload,
+  };
+
+  const storageKey = type === "url" ? payload : `text_${Date.now()}`;
+  await chrome.storage.sync.set({ [storageKey]: summaryData });
+
+  chrome.runtime.sendMessage({
+    type: "SUMMARY_UPDATED",
+    key: storageKey,
+    summaryData,
+  });
+}
+
+/**
+ * Retrieves the most recent summary from storage items.
+ * @param {Object} items - Storage items containing summaries.
+ * @returns {Object|null} The most recent summary or null if no summaries exist.
+ */
+function getMostRecentSummary(items) {
+  return Object.values(items).reduce((mostRecent, current) => {
+    return !mostRecent || current.expiration > mostRecent.expiration
+      ? current
+      : mostRecent;
+  }, null);
+}
+
+/**
+ * Shows or hides the loading screen by sending a message to the popup.
+ * @param {boolean} show - Whether to show or hide the loading screen.
+ */
+function showLoading(show) {
+  chrome.runtime.sendMessage({ type: "SHOW_LOADING", show });
+}
