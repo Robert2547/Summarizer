@@ -1,4 +1,7 @@
-# config.py
+"""
+Configuration settings for the summarization service.
+"""
+
 import os
 
 MODEL_NAME = os.getenv("MODEL_NAME", "sshleifer/distilbart-cnn-12-6")
