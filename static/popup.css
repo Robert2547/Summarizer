@@ -99,3 +99,19 @@
   .popup-content button:hover {
     background-color: #3498db;
   }
+
+  #clear-summary {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    right: 1rem;
+    
+  }
+
+  #clear-btn {
+    position: relative;
+    top: 5px;
+    height: 20px;
+    width: 20px;
+  }

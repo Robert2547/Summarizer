@@ -2,7 +2,7 @@
  * Base URL for the summarization API.
  * @constant {string}
  */
-const API_URL = 'http://127.0.0.1:8000';
+const API_URL = "http://127.0.0.1:8000";
 
 /**
  * Object containing references to important DOM elements.
@@ -12,12 +12,13 @@ const elements = {
   checkButton: document.getElementById("check-summary"),
   summary: document.getElementById("summary"),
   loadingScreen: document.getElementById("loading-screen"),
+  clearButton: document.getElementById("clear-summary"),
 };
-
 
 // Event Listeners
 document.addEventListener("DOMContentLoaded", initializePopup);
 elements.checkButton.addEventListener("click", handleCheckResult);
+elements.clearButton.addEventListener("click", handleClearSummary);
 
 // Message Listeners
 chrome.runtime.onMessage.addListener(handleRuntimeMessages);
@@ -54,6 +55,13 @@ function handleCheckResult() {
       return;
     }
     showSummaryInActiveTab(summary);
+  });
+}
+
+function handleClearSummary() {
+  chrome.runtime.sendMessage({ type: "CLEAR_SUMMARY" }, () => {
+    updateSummaryDisplay("Summary cleared");
+    elements.summary.style.fontStyle = "italic";
   });
 }
 

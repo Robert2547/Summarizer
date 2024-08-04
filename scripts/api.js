@@ -91,6 +91,12 @@ function handleRuntimeMessages(request, sender, sendResponse) {
   } else if (request.type === "SUMMARIZE") {
     performSummarization(request.payload, request.summarizationType);
     return false;
+  } else if (request.type === "CLEAR_SUMMARY") {
+    chrome.storage.sync.clear(() => {
+      console.log("Cache cleared");
+      sendResponse({ success: true });
+    });
+    return true;
   }
 }
 
