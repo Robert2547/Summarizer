@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { checkServerStatus } from "@src/utils/utils";
 import { Message } from "@src/types/types";
+import Loader from "@src/component/loader/Loader";
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -166,7 +167,7 @@ const Popup: React.FC = () => {
       <h1>Text Summarizer</h1>
       <p>Select text on a webpage, right-click, and choose "Summarize"!</p>
       {isLoading ? (
-        <div id="loading-screen">Loading...</div>
+        <Loader/>
       ) : (
         <div id="summary">{summary}</div>
       )}

@@ -1,33 +1,15 @@
 import { Message, SummaryData } from "@src/types/types";
 import { getMostRecentSummary } from "@src/utils/utils";
+
 const API_URL = "http://127.0.0.1:8000";
 const SUMMARY_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
 
 let isLoading = false;
+
 // Event Listeners
 chrome.runtime.onInstalled.addListener(createContextMenus);
-chrome.contextMenus.onClicked.addListener(
-  (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
-    if (tab) {
-      handleContextMenuClick(info, tab);
-    }
-  }
-);
+chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
 chrome.runtime.onMessage.addListener(handleRuntimeMessages);
-
-chrome.runtime.onMessage.addListener(
-  (message: Message, sender, sendResponse) => {
-    if (message.type === "SHOW_LOADING") {
-      sendResponse({ isLoading });
-      return true;
-    }
-  }
-);
-
-function setLoadingState(loading: boolean) {
-  isLoading = loading;
-  chrome.runtime.sendMessage({ type: "LOADING_STATE_CHANGED", isLoading });
-}
 
 /**
  * Creates context menu items for summarization.
@@ -54,12 +36,14 @@ function handleContextMenuClick(
   info: chrome.contextMenus.OnClickData,
   tab?: chrome.tabs.Tab
 ) {
+  if (!tab) return;
+
   const summarizationTypes: Record<
     string,
     { payload: string; type: "text" | "url" }
   > = {
     summarizeSelection: { payload: info.selectionText || "", type: "text" },
-    summarizeArticle: { payload: tab?.url || "", type: "url" },
+    summarizeArticle: { payload: tab.url || "", type: "url" },
   };
 
   const { payload, type } = summarizationTypes[info.menuItemId as string] || {};
@@ -85,7 +69,6 @@ async function performSummarization(payload: string, type: "text" | "url") {
   } finally {
     console.timeEnd("Summarization Time");
     setLoadingState(false);
-    console.log("Hiding loading screen");
     chrome.runtime.sendMessage({ type: "SUMMARY_UPDATED" } as Message);
   }
 }
@@ -116,7 +99,6 @@ function handleRuntimeMessages(
       });
       return true;
     case "SUMMARIZE":
-      console.log("Performing summarization...");
       performSummarization(request.payload, request.summarizationType);
       return false;
     case "CLEAR_SUMMARY":
@@ -125,6 +107,9 @@ function handleRuntimeMessages(
         sendResponse({ success: true });
       });
       return true;
+    case "SHOW_LOADING":
+      sendResponse({ isLoading });
+      return false;
     default:
       return false;
   }
@@ -184,6 +169,10 @@ async function storeSummary(
 }
 
 /**
- * Shows or hides the loading screen by sending a message to the popup.
- * @param show Whether to show or hide the loading screen.
+ * Sets the loading state and notifies the popup.
+ * @param loading The new loading state.
  */
+function setLoadingState(loading: boolean) {
+  isLoading = loading;
+  chrome.runtime.sendMessage({ type: "LOADING_STATE_CHANGED", isLoading });
+}
