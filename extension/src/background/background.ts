@@ -1,9 +1,9 @@
 import { Message, SummaryData } from "@src/types/types";
 import { getMostRecentSummary } from "@src/utils/utils";
-
 const API_URL = "http://127.0.0.1:8000";
 const SUMMARY_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
 
+let isLoading = false;
 // Event Listeners
 chrome.runtime.onInstalled.addListener(createContextMenus);
 chrome.contextMenus.onClicked.addListener(
@@ -14,6 +14,20 @@ chrome.contextMenus.onClicked.addListener(
   }
 );
 chrome.runtime.onMessage.addListener(handleRuntimeMessages);
+
+chrome.runtime.onMessage.addListener(
+  (message: Message, sender, sendResponse) => {
+    if (message.type === "SHOW_LOADING") {
+      sendResponse({ isLoading });
+      return true;
+    }
+  }
+);
+
+function setLoadingState(loading: boolean) {
+  isLoading = loading;
+  chrome.runtime.sendMessage({ type: "LOADING_STATE_CHANGED", isLoading });
+}
 
 /**
  * Creates context menu items for summarization.
@@ -60,7 +74,7 @@ function handleContextMenuClick(
  * @param type The type of summarization ('text' or 'url').
  */
 async function performSummarization(payload: string, type: "text" | "url") {
-  showLoading(true);
+  setLoadingState(true);
   console.time("Summarization Time");
 
   try {
@@ -70,7 +84,9 @@ async function performSummarization(payload: string, type: "text" | "url") {
     console.error("Error in summarizing:", error);
   } finally {
     console.timeEnd("Summarization Time");
-    showLoading(false);
+    setLoadingState(false);
+    console.log("Hiding loading screen");
+    chrome.runtime.sendMessage({ type: "SUMMARY_UPDATED" } as Message);
   }
 }
 
@@ -136,7 +152,6 @@ async function fetchSummary(
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  console.log("Received response from API");
   return response.json();
 }
 
@@ -161,7 +176,6 @@ async function storeSummary(
   const storageKey = type === "url" ? payload : `text_${Date.now()}`;
   await chrome.storage.sync.set({ [storageKey]: summaryData });
 
-  console.log("Sending SUMMARY_UPDATED message");
   chrome.runtime.sendMessage({
     type: "SUMMARY_UPDATED",
     key: storageKey,
@@ -173,7 +187,3 @@ async function storeSummary(
  * Shows or hides the loading screen by sending a message to the popup.
  * @param show Whether to show or hide the loading screen.
  */
-function showLoading(show: boolean) {
-  console.log("Sending SHOW_LOADING message");
-  chrome.runtime.sendMessage({ type: "SHOW_LOADING", show } as Message);
-}

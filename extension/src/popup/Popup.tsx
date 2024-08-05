@@ -1,13 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { getSummary, clearSummary, checkServerStatus } from "@src/utils/utils";
+import { checkServerStatus } from "@src/utils/utils";
 import { Message } from "@src/types/types";
 
-// const API_URL = process.env.API_URL || "http://127.0.0.1:8000";
 const API_URL = "http://127.0.0.1:8000";
-/**
- * Popup component for the extension.
- * Displays the most recent summary and provides controls for checking and clearing summaries.
- */
+
 const Popup: React.FC = () => {
   const [summary, setSummary] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -16,19 +12,68 @@ const Popup: React.FC = () => {
   );
 
   useEffect(() => {
-    loadMostRecentSummary();
-    checkStatus();
+    const loadSummaryAndCheckStatus = async () => {
+      try {
+        await loadMostRecentSummary();
+        await checkStatus();
+      } catch (error) {
+        console.error("Error loading summary or checking status:", error);
+      }
+    };
+
+    loadSummaryAndCheckStatus();
+
+    const messageListener = (message: Message) => {
+      if (message.type === "SUMMARY_UPDATED") {
+        loadSummaryAndCheckStatus();
+        setIsLoading(false);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(messageListener);
+
+    const getInitialLoadingState = () => {
+      chrome.runtime.sendMessage({ type: "GET_LOADING_STATE" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error getting initial loading state:",
+            chrome.runtime.lastError
+          );
+          return;
+        }
+        setIsLoading(response.isLoading);
+      });
+    };
+
+    const handleLoadingStateChange = (message: any) => {
+      if (message.type === "LOADING_STATE_CHANGED") {
+        setIsLoading(message.isLoading);
+      }
+    };
+
+    getInitialLoadingState();
+    chrome.runtime.onMessage.addListener(handleLoadingStateChange);
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
   }, []);
 
-  /**
-   * Loads the most recent summary from storage.
-   */
   const loadMostRecentSummary = async () => {
     console.log("Loading most recent summary...");
     setIsLoading(true);
     try {
-      const result = await getSummary();
-      console.log("Most recent summary:", result);
+      const result = await new Promise<string>((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: "GET_SUMMARY" } as Message,
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(response.summary);
+            }
+          }
+        );
+      });
       setSummary(result);
     } catch (error) {
       console.error("Error loading most recent summary:", error);
@@ -38,51 +83,70 @@ const Popup: React.FC = () => {
     }
   };
 
-  /**
-   * Handles the "Check Result" button click.
-   * Retrieves the most recent summary and displays it in the active tab.
-   */
   const handleCheckResult = async () => {
     setIsLoading(true);
-    const result = await getSummary();
-    if (result !== "No summary available.") {
-      chrome.tabs.query(
-        { active: true, currentWindow: true },
-        async ([activeTab]) => {
-          if (activeTab.id) {
-            try {
-              // inject the content script if it's not already there
-              await chrome.scripting.executeScript({
-                target: { tabId: activeTab.id },
-                files: ["content.js"],
-              });
-
-              chrome.tabs.sendMessage(activeTab.id, {
-                type: "SHOW_SUMMARY",
-                summary: result,
-              } as Message);
-            } catch (error) {
-              console.error("Error sending message to content script:", error);
+    try {
+      const result = await new Promise<string>((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: "GET_SUMMARY" } as Message,
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(response.summary);
             }
           }
-        }
-      );
+        );
+      });
+      if (result !== "No summary available.") {
+        chrome.tabs.query(
+          { active: true, currentWindow: true },
+          async ([activeTab]) => {
+            if (activeTab.id) {
+              try {
+                await chrome.scripting.executeScript({
+                  target: { tabId: activeTab.id },
+                  files: ["content.js"],
+                });
+                chrome.tabs.sendMessage(activeTab.id, {
+                  type: "SHOW_SUMMARY",
+                  summary: result,
+                } as Message);
+              } catch (error) {
+                console.error(
+                  "Error sending message to content script:",
+                  error
+                );
+              }
+            }
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Error checking result:", error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  /**
-   * Handles the "Clear Summary" button click.
-   * Clears all summaries from storage.
-   */
   const handleClearSummary = async () => {
-    await clearSummary();
-    setSummary("Summary cleared");
+    try {
+      await new Promise<void>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "CLEAR_SUMMARY" } as Message, () => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve();
+          }
+        });
+      });
+      setSummary("Summary cleared");
+    } catch (error) {
+      console.error("Error clearing summary:", error);
+      setSummary("Error clearing summary");
+    }
   };
 
-  /**
-   * Checks the status of the summarization server.
-   */
   const checkStatus = async () => {
     const status = await checkServerStatus(API_URL);
     setServerStatus(status ? "running" : "down");
@@ -101,8 +165,11 @@ const Popup: React.FC = () => {
     <div>
       <h1>Text Summarizer</h1>
       <p>Select text on a webpage, right-click, and choose "Summarize"!</p>
-      <div id="summary">{summary}</div>
-      {isLoading && <div id="loading-screen">Loading...</div>}
+      {isLoading ? (
+        <div id="loading-screen">Loading...</div>
+      ) : (
+        <div id="summary">{summary}</div>
+      )}
       <button
         id="check-result"
         onClick={handleCheckResult}
