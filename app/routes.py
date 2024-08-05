@@ -25,6 +25,7 @@ cache = TTLCache(maxsize=100, ttl=86400)  # Cache for 24 hours
 @router.post("/summarize")
 async def summarize(request: Request, data: SummarizeRequest):
     start_time = time.perf_counter()
+    logger.info("Received summarization request")
 
     cache_key = get_cache_key(data.dict())
     if cache_key in cache:

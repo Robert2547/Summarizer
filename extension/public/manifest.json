@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Text Summarizer",
+  "version": "1.0",
+  "description": "Summarize selected text or entire web pages",
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "notifications"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/pad.png",
+      "48": "icons/pad.png",
+      "128": "icons/pad.png"
+    }
+  },
+  "icons": {
+    "16": "icons/pad.png",
+    "48": "icons/pad.png",
+    "128": "icons/pad.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["index.js", "Popup.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

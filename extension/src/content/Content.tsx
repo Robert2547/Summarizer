@@ -1,0 +1,99 @@
+import React, { useEffect, useState } from "react";
+import ReactDOM from "react-dom";
+import { Message } from "@src/types/types";
+
+interface SummaryPopupProps {
+  summary: string;
+  onClose: () => void;
+}
+
+/**
+ * Component for displaying the summary popup in the active tab.
+ */
+const SummaryPopup: React.FC<SummaryPopupProps> = ({ summary, onClose }) => {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 10000,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ecf0f1",
+          color: "#2c3e50",
+          padding: "2rem",
+          borderRadius: "1rem",
+          textAlign: "center",
+          maxWidth: "80%",
+          maxHeight: "80%",
+          overflowY: "auto",
+        }}
+      >
+        <p style={{ fontSize: "1rem" }}>{summary}</p>
+        <button
+          onClick={onClose}
+          style={{
+            backgroundColor: "#2980b9",
+            color: "#ecf0f1",
+            border: "none",
+            borderRadius: "0.5rem",
+            padding: "0.5rem 1rem",
+            fontSize: "1rem",
+            cursor: "pointer",
+            marginTop: "1rem",
+            transition: "background-color 0.3s ease",
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Content script component that listens for messages to show the summary popup.
+ */
+const Content: React.FC = () => {
+  const [summary, setSummary] = useState<string | null>(null);
+
+  useEffect(() => {
+    const messageListener = (
+      request: Message,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: any) => void
+    ) => {
+      if (request.type === "SHOW_SUMMARY") {
+        setSummary(request.summary);
+      }
+      sendResponse({ received: true });
+    };
+
+    chrome.runtime.onMessage.addListener(messageListener);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, []);
+
+  if (!summary) {
+    return null;
+  }
+
+  return <SummaryPopup summary={summary} onClose={() => setSummary(null)} />;
+};
+
+const root = document.createElement("div");
+document.body.appendChild(root);
+ReactDOM.render(<Content />, root);
+
+export default Content;

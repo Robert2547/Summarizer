@@ -13,33 +13,38 @@ This Chrome extension allows users to summarize articles directly from web pages
 ## Installation
 
 1. Clone the repository
+   1a. In extension folder, run `npm install` to install the dependencies.
+   1b. Use "npm run build" to build the extension.
 2. Open Chrome and navigate to `chrome://extensions/`.
 3. Enable "Developer mode" by clicking the toggle switch in the top right corner.
-4. Click "Load unpacked" and select the cloned repository folder.
+4. Click "Load unpacked" and select "dist" folder in the extension directory.
 5. Install the server dependencies by running `pip install -r requirements.txt`.
 
 ## Usage
 
-1. Start the server:
-    - python -m app.main
+1. Start the server in the parent directory:
+
+   - python -m app.main
 
 2. To summarize the entire page:
+
    - Right-click on the page.
    - Select `SelectedArticle` from the context menu.
 
 3. To summarize selected text:
+
    - Highlight the text you want to summarize.
    - Right-click on the highlighted text.
    - Select `SelectedText` from the context menu.
 
 4. To view the full summary:
-    - Click on the extension icon in the toolbar.
-    - Click on the "Check Result" button.
+
+   - Click on the extension icon in the toolbar.
+   - Click on the "Check Result" button.
 
 5. To clear the cache:
-    - Click on the extension icon in the toolbar.
-    - Click on the "Clear Cache" button.
-
+   - Click on the extension icon in the toolbar.
+   - Click on the "Clear Cache" button.
 
 ## Configuration
 
