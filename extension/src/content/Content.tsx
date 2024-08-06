@@ -73,7 +73,6 @@ const Content: React.FC = () => {
       sendResponse: (response?: any) => void
     ) => {
       if (request.type === "SHOW_SUMMARY") {
-        console.log("SHOW_SUMMARY message received");
         setSummary(request.summary);
         sendResponse({ received: true });
       }
@@ -90,7 +89,6 @@ const Content: React.FC = () => {
     return null;
   }
 
-  console.log("Rendering summary popup with summary");
   return <SummaryPopup summary={summary} onClose={() => setSummary(null)} />;
 };
 // Check if the root element already exists

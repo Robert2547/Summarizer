@@ -172,6 +172,5 @@ async function storeSummary(
  * @param loading The new loading state.
  */
 function setLoadingState(loading: boolean) {
-  isLoading = loading;
-  chrome.runtime.sendMessage({ type: "LOADING_STATE_CHANGED", isLoading });
+  chrome.runtime.sendMessage({ type: "SHOW_LOADING", show: loading });
 }

@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { checkServerStatus, clearSummary, getSummary } from "@src/utils/utils";
 import { Message } from "@src/types/types";
 import Loader from "@src/component/Loader/Loader";
+import SummaryDisplay from "@src/component/SummaryDisplay/SummaryDisplay";
+import ActionButtons from "@src/component/ActionButtons/ActionButtons";
 
 const API_URL = "http://127.0.0.1:8000";
 const Popup: React.FC = () => {
@@ -36,47 +38,23 @@ const Popup: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const loadSummaryAndCheckStatus = async () => {
-      try {
-        await loadMostRecentSummary();
-        await checkStatus();
-      } catch (error) {
-        console.error("Error loading summary or checking status:", error);
-      }
+    const initializePopup = async () => {
+      await checkStatus();
+      await loadMostRecentSummary();
     };
 
-    loadSummaryAndCheckStatus();
+    initializePopup();
 
     const messageListener = (message: Message) => {
       if (message.type === "SUMMARY_UPDATED") {
-        loadSummaryAndCheckStatus();
+        loadMostRecentSummary();
         setIsLoading(false);
+      } else if (message.type === "SHOW_LOADING") {
+        setIsLoading(message.show);
       }
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
-
-    const getInitialLoadingState = () => {
-      chrome.runtime.sendMessage({ type: "GET_LOADING_STATE" }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "Error getting initial loading state:",
-            chrome.runtime.lastError
-          );
-          return;
-        }
-        setIsLoading(response.isLoading);
-      });
-    };
-
-    const handleLoadingStateChange = (message: any) => {
-      if (message.type === "LOADING_STATE_CHANGED") {
-        setIsLoading(message.isLoading);
-      }
-    };
-
-    getInitialLoadingState();
-    chrome.runtime.onMessage.addListener(handleLoadingStateChange);
 
     chrome.storage.local.set({ contentInjected: false });
     return () => {
@@ -209,24 +187,15 @@ const Popup: React.FC = () => {
   }
 
   return (
-    <div>
+    <div className="popup-container">
       <h1>Text Summarizer</h1>
       <p>Select text on a webpage, right-click, and choose "Summarize"!</p>
-      {isLoading ? <Loader /> : <div id="summary">{summary}</div>}
-      <button
-        id="check-result"
-        onClick={handleCheckResult}
-        disabled={isLoading}
-      >
-        Check Result
-      </button>
-      <button
-        id="clear-summary"
-        onClick={handleClearSummary}
-        disabled={isLoading}
-      >
-        <img src="icons/delete.png" alt="delete" id="clear-btn" />
-      </button>
+      {isLoading ? <Loader /> : <SummaryDisplay summary={summary} />}
+      <ActionButtons
+        onCheckResult={handleCheckResult}
+        onClearSummary={handleClearSummary}
+        isLoading={isLoading}
+      />
     </div>
   );
 };
