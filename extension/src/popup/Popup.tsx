@@ -4,7 +4,6 @@ import { Message } from "@src/types/types";
 import Loader from "@src/component/loader/Loader";
 
 const API_URL = "http://127.0.0.1:8000";
-
 const Popup: React.FC = () => {
   const [summary, setSummary] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -54,6 +53,8 @@ const Popup: React.FC = () => {
 
     getInitialLoadingState();
     chrome.runtime.onMessage.addListener(handleLoadingStateChange);
+
+    chrome.storage.local.set({ contentInjected: false });
     return () => {
       chrome.runtime.onMessage.removeListener(messageListener);
     };
@@ -98,21 +99,53 @@ const Popup: React.FC = () => {
             }
           }
         );
+        console.log("SEND GET_SUMMARY message");
       });
       if (result !== "No summary available.") {
+        console.log("Sending message to content script");
         chrome.tabs.query(
           { active: true, currentWindow: true },
           async ([activeTab]) => {
             if (activeTab.id) {
               try {
-                await chrome.scripting.executeScript({
-                  target: { tabId: activeTab.id },
-                  files: ["content.js"],
-                });
-                chrome.tabs.sendMessage(activeTab.id, {
-                  type: "SHOW_SUMMARY",
-                  summary: result,
-                } as Message);
+                console.log("Sending SHOW_SUMMARY message");
+                chrome.tabs.sendMessage(
+                  activeTab.id,
+                  {
+                    type: "SHOW_SUMMARY",
+                    summary: result,
+                  } as Message,
+                  (response) => {
+                    if (chrome.runtime.lastError) {
+                      // Content script is not ready, inject it
+                      chrome.scripting.executeScript(
+                        {
+                          target: { tabId: activeTab.id! },
+                          files: ["content.js"],
+                        },
+                        () => {
+                          // After injection, try sending the message again
+                          chrome.tabs.sendMessage(
+                            activeTab.id!,
+                            {
+                              type: "SHOW_SUMMARY",
+                              summary: result,
+                            } as Message,
+                            (response) => {
+                              if (response && response.received) {
+                                console.log("Summary displayed, closing popup");
+                                window.close();
+                              }
+                            }
+                          );
+                        }
+                      );
+                    } else if (response && response.received) {
+                      console.log("Summary displayed, closing popup");
+                      window.close();
+                    }
+                  }
+                );
               } catch (error) {
                 console.error(
                   "Error sending message to content script:",
@@ -166,11 +199,7 @@ const Popup: React.FC = () => {
     <div>
       <h1>Text Summarizer</h1>
       <p>Select text on a webpage, right-click, and choose "Summarize"!</p>
-      {isLoading ? (
-        <Loader/>
-      ) : (
-        <div id="summary">{summary}</div>
-      )}
+      {isLoading ? <Loader /> : <div id="summary">{summary}</div>}
       <button
         id="check-result"
         onClick={handleCheckResult}

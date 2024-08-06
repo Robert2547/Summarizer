@@ -73,9 +73,10 @@ const Content: React.FC = () => {
       sendResponse: (response?: any) => void
     ) => {
       if (request.type === "SHOW_SUMMARY") {
+        console.log("SHOW_SUMMARY message received");
         setSummary(request.summary);
+        sendResponse({ received: true });
       }
-      sendResponse({ received: true });
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
@@ -89,11 +90,33 @@ const Content: React.FC = () => {
     return null;
   }
 
+  console.log("Rendering summary popup with summary");
   return <SummaryPopup summary={summary} onClose={() => setSummary(null)} />;
 };
+// Check if the root element already exists
+let root = document.getElementById("summary-root");
 
-const root = document.createElement("div");
-document.body.appendChild(root);
+if (!root) {
+  // If it doesn't exist, create it
+  root = document.createElement("div");
+  root.id = "summary-root";
+  document.body.appendChild(root);
+}
+
+// Render the Content component
 ReactDOM.render(<Content />, root);
+``;
+
+// Listen for messages from the popup
+chrome.runtime.onMessage.addListener(
+  (request: Message, sender, sendResponse) => {
+    if (request.type === "SHOW_SUMMARY") {
+      // Force a re-render of the Content component
+      ReactDOM.render(<Content />, root);
+    }
+    sendResponse({ received: true });
+    return true; // Indicates that the response is sent asynchronously
+  }
+);
 
 export default Content;

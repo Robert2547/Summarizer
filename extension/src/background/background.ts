@@ -37,7 +37,6 @@ function handleContextMenuClick(
   tab?: chrome.tabs.Tab
 ) {
   if (!tab) return;
-
   const summarizationTypes: Record<
     string,
     { payload: string; type: "text" | "url" }

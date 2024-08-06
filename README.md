@@ -57,8 +57,9 @@ You can configure the following environment variables:
 ## Development
 
 1. Make changes to the extension code.
-2. Reload the extension in Chrome by navigating to `chrome://extensions/` and clicking the reload button.
-3. Restart the server to apply changes.
+   1a. In extension folder, run `npm run build` to build the extension.
+2. Reload the extension in Chrome by navigating to `chrome://extensions/` and clicking the reload button
+3. Restart the server to apply changes. (Optional, if you made changes to the server code)
 
 ## API Endpoints
 
