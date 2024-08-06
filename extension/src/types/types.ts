@@ -2,9 +2,13 @@
  * Represents the structure of a summary stored in Chrome storage.
  */
 export interface SummaryData {
+  /** The summarized text. */
   text: string;
+  /** The expiration timestamp of the summary. */
   expiration: number;
+  /** The type of the summary (text or URL). */
   type: "text" | "url";
+  /** The original text or URL that was summarized. */
   payload: string;
 }
 

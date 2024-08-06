@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { checkServerStatus } from "@src/utils/utils";
+import React, { useEffect, useState, useCallback } from "react";
+import { checkServerStatus, clearSummary, getSummary } from "@src/utils/utils";
 import { Message } from "@src/types/types";
-import Loader from "@src/component/loader/Loader";
+import Loader from "@src/component/Loader/Loader";
 
 const API_URL = "http://127.0.0.1:8000";
 const Popup: React.FC = () => {
@@ -10,6 +10,30 @@ const Popup: React.FC = () => {
   const [serverStatus, setServerStatus] = useState<"running" | "down">(
     "running"
   );
+
+  /**
+   * Checks the status of the summarization server.
+   */
+  const checkStatus = useCallback(async () => {
+    const status = await checkServerStatus(API_URL);
+    setServerStatus(status ? "running" : "down");
+  }, []);
+
+  /**
+   * Loads the most recent summary from storage.
+   */
+  const loadMostRecentSummary = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getSummary();
+      setSummary(result);
+    } catch (error) {
+      console.error("Error loading most recent summary:", error);
+      setSummary("No summary available.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const loadSummaryAndCheckStatus = async () => {
@@ -60,137 +84,126 @@ const Popup: React.FC = () => {
     };
   }, []);
 
-  const loadMostRecentSummary = async () => {
-    console.log("Loading most recent summary...");
+  /**
+   * Handles the "Check Result" button click.
+   * Retrieves the summary and displays it in the active tab.
+   */
+  const handleCheckResult = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await new Promise<string>((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          { type: "GET_SUMMARY" } as Message,
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(response.summary);
-            }
-          }
-        );
-      });
-      setSummary(result);
-    } catch (error) {
-      console.error("Error loading most recent summary:", error);
-      setSummary("No summary available.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCheckResult = async () => {
-    setIsLoading(true);
-    try {
-      const result = await new Promise<string>((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          { type: "GET_SUMMARY" } as Message,
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(response.summary);
-            }
-          }
-        );
-        console.log("SEND GET_SUMMARY message");
-      });
+      const result = await getSummary();
       if (result !== "No summary available.") {
-        console.log("Sending message to content script");
-        chrome.tabs.query(
-          { active: true, currentWindow: true },
-          async ([activeTab]) => {
-            if (activeTab.id) {
-              try {
-                console.log("Sending SHOW_SUMMARY message");
-                chrome.tabs.sendMessage(
-                  activeTab.id,
-                  {
-                    type: "SHOW_SUMMARY",
-                    summary: result,
-                  } as Message,
-                  (response) => {
-                    if (chrome.runtime.lastError) {
-                      // Content script is not ready, inject it
-                      chrome.scripting.executeScript(
-                        {
-                          target: { tabId: activeTab.id! },
-                          files: ["content.js"],
-                        },
-                        () => {
-                          // After injection, try sending the message again
-                          chrome.tabs.sendMessage(
-                            activeTab.id!,
-                            {
-                              type: "SHOW_SUMMARY",
-                              summary: result,
-                            } as Message,
-                            (response) => {
-                              if (response && response.received) {
-                                console.log("Summary displayed, closing popup");
-                                window.close();
-                              }
-                            }
-                          );
-                        }
-                      );
-                    } else if (response && response.received) {
-                      console.log("Summary displayed, closing popup");
-                      window.close();
-                    }
-                  }
-                );
-              } catch (error) {
-                console.error(
-                  "Error sending message to content script:",
-                  error
-                );
-              }
-            }
-          }
-        );
+        await displaySummaryInActiveTab(result);
       }
     } catch (error) {
       console.error("Error checking result:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleClearSummary = async () => {
+  /**
+   * Handles the "Clear Summary" button click.
+   * Clears the summary from storage and updates the state.
+   */
+  const handleClearSummary = useCallback(async () => {
     try {
-      await new Promise<void>((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: "CLEAR_SUMMARY" } as Message, () => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve();
-          }
-        });
-      });
+      await clearSummary();
       setSummary("Summary cleared");
     } catch (error) {
       console.error("Error clearing summary:", error);
       setSummary("Error clearing summary");
     }
+  }, []);
+
+  /**
+   * Displays the summary in the active tab by sending a message to the content script.
+   * @param summary - The summary to display.
+   */
+  const displaySummaryInActiveTab = async (summary: string) => {
+    chrome.tabs.query(
+      { active: true, currentWindow: true },
+      async ([activeTab]) => {
+        if (activeTab.id) {
+          try {
+            await sendMessageToContentScript(activeTab.id, summary);
+          } catch (error) {
+            console.error("Error sending message to content script:", error);
+          }
+        }
+      }
+    );
   };
 
-  const checkStatus = async () => {
-    const status = await checkServerStatus(API_URL);
-    setServerStatus(status ? "running" : "down");
+  /**
+   * Sends a message to the content script to display the summary.
+   * @param tabId - The ID of the tab to send the message to.
+   * @param summary - The summary to display.
+   */
+  const sendMessageToContentScript = async (
+    tabId: number,
+    summary: string
+  ): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: "SHOW_SUMMARY", summary } as Message,
+        (response) => {
+          if (chrome.runtime.lastError) {
+            injectContentScriptAndRetry(tabId, summary, resolve, reject);
+          } else if (response && response.received) {
+            console.log("Summary displayed, closing popup");
+            window.close();
+            resolve();
+          } else {
+            reject(new Error("Failed to display summary"));
+          }
+        }
+      );
+    });
+  };
+
+  /**
+   * Injects the content script and retries sending the message if the initial attempt fails.
+   * @param tabId - The ID of the tab to inject the script into.
+   * @param summary - The summary to display.
+   * @param resolve - The resolve function of the Promise.
+   * @param reject - The reject function of the Promise.
+   */
+  const injectContentScriptAndRetry = (
+    tabId: number,
+    summary: string,
+    resolve: () => void,
+    reject: (reason?: any) => void
+  ) => {
+    chrome.scripting.executeScript(
+      {
+        target: { tabId },
+        files: ["content.js"],
+      },
+      () => {
+        chrome.tabs.sendMessage(
+          tabId,
+          { type: "SHOW_SUMMARY", summary } as Message,
+          (response) => {
+            if (response && response.received) {
+              console.log("Summary displayed after injection, closing popup");
+              window.close();
+              resolve();
+            } else {
+              reject(new Error("Failed to display summary after injection"));
+            }
+          }
+        );
+      }
+    );
   };
 
   if (serverStatus === "down") {
     return (
       <div className="server-down">
         <h1>Server Status</h1>
-        <p>The server is currently down. Please come back later.</p>
+        <p>The server is currently down. Please try again later.</p>
       </div>
     );
   }
